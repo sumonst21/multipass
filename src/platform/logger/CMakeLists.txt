@@ -19,4 +19,4 @@ pkg_check_modules(JOURNALD libsystemd REQUIRED)
 add_library(journaldlogger STATIC journald_logger.cpp)
 target_include_directories(journaldlogger PRIVATE
         ${JOURNALD_INCLUDE_DIRS})
-target_link_libraries(journaldlogger fmt Qt5::Core ${JOURNALD_LIBRARIES})
+target_link_libraries(journaldlogger fmt Qt6::Core ${JOURNALD_LIBRARIES})
