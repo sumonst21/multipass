@@ -32,7 +32,6 @@ public:
     MOCK_CONST_METHOD0(status, QSettings::Status());
     MOCK_CONST_METHOD0(fileName, QString());
     MOCK_CONST_METHOD2(value_impl, QVariant(const QString& key, const QVariant& default_value)); // promote visibility
-    MOCK_METHOD1(setIniCodec, void(const char* codec_name));
     MOCK_METHOD0(sync, void());
     MOCK_METHOD2(setValue, void(const QString& key, const QVariant& value));
 };
