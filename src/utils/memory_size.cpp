@@ -21,6 +21,8 @@
 
 #include <multipass/format.h>
 
+#include <QRegularExpression>
+
 namespace mp = multipass;
 
 namespace
@@ -31,12 +33,14 @@ constexpr auto gibi = mebi * kibi;
 
 long long in_bytes(const std::string& mem_value)
 {
-    QRegExp matcher("(\\d+)(?:([KMG])(?:i?B)?|B)?", Qt::CaseInsensitive); // TODO accept decimals
+    QRegularExpression regex{QRegularExpression::anchoredPattern("(\\d+)(?:([KMG])(?:i?B)?|B)?"),
+                             QRegularExpression::CaseInsensitiveOption};
+    const auto matcher = regex.match(QString::fromStdString(mem_value)); // TODO accept decimals
 
-    if (matcher.exactMatch(QString::fromStdString(mem_value)))
+    if (matcher.hasMatch())
     {
-        auto val = matcher.cap(1).toLongLong(); // value is in the second capture (1st one is the whole match)
-        const auto unit = matcher.cap(2);       // unit in the third capture (idem)
+        auto val = matcher.captured(1).toLongLong(); // value is in the second capture (1st one is the whole match)
+        const auto unit = matcher.captured(2);       // unit in the third capture (idem)
         if (!unit.isEmpty())
         {
             switch (unit.at(0).toLower().toLatin1())

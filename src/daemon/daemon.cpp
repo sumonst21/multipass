@@ -58,7 +58,6 @@
 #include <QJsonDocument>
 #include <QJsonObject>
 #include <QJsonParseError>
-#include <QRegularExpression>
 #include <QString>
 #include <QSysInfo>
 #include <QtConcurrent/QtConcurrent>
