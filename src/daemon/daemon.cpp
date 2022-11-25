@@ -1511,16 +1511,12 @@ try // clang-format on
                                                                                         : VMMount::MountType::Native;
 
         VMMount vm_mount{request->source_path(), gid_mappings, uid_mappings, mount_type};
-        vm_mounts[target_path] =
-            mount_type == VMMount::MountType::Classic
-                ? std::make_unique<SSHFSMountHandler>(vm.get(), config->ssh_key_provider.get(), target_path, vm_mount)
-                : vm->make_native_mount_handler(config->ssh_key_provider.get(), target_path, vm_mount);
-
         if (vm->current_state() == mp::VirtualMachine::State::running)
         {
             try
             {
-                vm_mounts[target_path]->start(server);
+                auto& mount = vm_mounts[target_path] = make_mount(vm.get(), target_path, vm_mount);
+                mount->start(server);
             }
             catch (const mp::SSHFSMissingError&)
             {
@@ -1802,11 +1798,12 @@ try // clang-format on
 
         status = cmd_vms(instances_to_suspend, [this](auto& vm) {
             auto& vm_mounts = mounts[vm.vm_name];
-            for (auto it = vm_mounts.begin(); it != vm_mounts.end();)
+            for (auto expiring_it = vm_mounts.begin(); expiring_it != vm_mounts.end();)
             {
                 // iterator must be advanced before used in order to prevent iterator invalidation caused by
                 // deleting from the iterated map
-                const auto& [target, mount] = *it++;
+                // expiring_it will be invalidated by vm_mounts.erase, so expiring_it must not be used after this point
+                const auto& [target, mount] = *expiring_it++;
                 try
                 {
                     mount->stop();
@@ -1970,11 +1967,12 @@ try // clang-format on
         // Empty target path indicates removing all mounts for the VM instance
         if (target_path.empty())
         {
-            for (auto it = vm_mounts.begin(); it != vm_mounts.end();)
+            for (auto expiring_it = vm_mounts.begin(); expiring_it != vm_mounts.end();)
             {
                 // iterator must be advanced before used in order to prevent iterator invalidation caused by deleting
                 // from the iterated map
-                const auto& [target, mount] = *it++;
+                // expiring_it will be invalidated by do_unmount, so it must not be used after this point
+                const auto& [target, mount] = *expiring_it++;
                 do_unmount(*mount, target);
             }
         }
@@ -2615,11 +2613,12 @@ grpc::Status mp::Daemon::shutdown_vm(VirtualMachine& vm, const std::chrono::mill
 
         auto stop_all_mounts = [this](const std::string& name) {
             auto& vm_mounts = mounts[name];
-            for (auto it = vm_mounts.begin(); it != vm_mounts.end();)
+            for (auto expiring_it = vm_mounts.begin(); expiring_it != vm_mounts.end();)
             {
                 // iterator must be advanced before used in order to prevent iterator invalidation caused by
                 // deleting from the iterated map
-                const auto& [target, mount] = *it++;
+                // expiring_it will be invalidated by vm_mounts.erase, so expiring_it must not be used after this point
+                const auto& [target, mount] = *expiring_it++;
                 try
                 {
                     mount->stop();
@@ -2676,13 +2675,15 @@ grpc::Status mp::Daemon::cmd_vms(const std::vector<std::string>& tgts, std::func
 void mp::Daemon::init_mounts(const std::string& name)
 {
     for (const auto& [target, vm_mount] : vm_instance_specs[name].mounts)
-    {
-        auto& vm = vm_instances[name];
-        mounts[name][target] =
-            vm_mount.mount_type == VMMount::MountType::Classic
-                ? std::make_unique<SSHFSMountHandler>(vm.get(), config->ssh_key_provider.get(), target, vm_mount)
-                : vm->make_native_mount_handler(config->ssh_key_provider.get(), target, vm_mount);
-    }
+        mounts[name][target] = make_mount(vm_instances[name].get(), target, vm_mount);
+}
+
+multipass::MountHandler::UPtr multipass::Daemon::make_mount(VirtualMachine* vm, const std::string& target,
+                                                            const VMMount& mount)
+{
+    return mount.mount_type == VMMount::MountType::Classic
+               ? std::make_unique<SSHFSMountHandler>(vm, config->ssh_key_provider.get(), target, mount)
+               : vm->make_native_mount_handler(config->ssh_key_provider.get(), target, mount);
 }
 
 QFutureWatcher<mp::Daemon::AsyncOperationStatus>*
